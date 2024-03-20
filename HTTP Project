@@ -1,0 +1,30 @@
+import requests
+from ipywidgets import interact_manual
+subreddits=['ama','aww','news','worldnews', 'politics','todayilearned','explainlikeimfive','writingprompts','upliftingnews','wholesomememes','freecompliments','happy','financialadvice','breadit']
+subreddits.sort()
+# Step 2: Write code here
+def getSentiment(text):
+    url = 'http://text-processing.com/api/sentiment/'
+    payload = { 'text' : text}
+    response = requests.post(url, data = payload)
+    sentiment = response.json()
+    return sentiment['label']
+def getRedditStories(text):
+    myheaders = {'User-Agent': 'ist256.lesson10.homework:v1.0 (by /u/fapaigej)' }
+    url=f'https://www.reddit.com/r/{text}.json'
+    response = requests.get(url, headers = myheaders)
+    response.raise_for_status()
+    data = response.json()
+    return data
+def extractTitles(text):
+    titles = ''
+    for story in text['data']['children']:
+        titles += story['data']['title'] + '\n'
+        return titles
+@interact_manual(subreddit= subreddits)
+def main(subreddit):
+    stories = getRedditStories(subreddit)
+    titles = extractTitles(stories)
+    sentiment = getSentiment(titles)
+   
+    print(f'The overall sentiment for subreddit {subreddit} is {sentiment}')
