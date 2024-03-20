@@ -1,0 +1,128 @@
+!pip install nba_api
+!pip install --upgrade chart-studio plotly
+
+from ipywidgets import interact_manual, interact
+from IPython.display import display, HTML, Image
+import pandas as pd
+import requests
+import json
+import chart_studio as plotly
+import chart_studio.plotly as py
+import plotly.express as px
+import plotly.graph_objects as go
+from nba_api.stats.static import players
+from nba_api.stats.endpoints import commonplayerinfo, playercareerstats
+
+def makeStatList(pts, asts, rebs):
+    x = pts['PTS'][0]
+    y = asts['AST'][0]
+    z = rebs['REB'][0]
+    stat = [x,y,z]
+    return stat
+
+display(HTML("<h1>Welcome to CompareR!</h1>"))
+display(HTML('<body>This program can be used to compare two NBA players stats this current season using the "Current" mode. You can also select the "Career" mode to compare their career stats, but when in this mode you can select any NBA Player ever. You can use the "Playoff Stats" to compare the playoff performances of two players, in this mode, you see how many playoff appearances a player has aswell. Use the "Active Players" mode to see view all active NBA players. </body>'))
+
+@interact(Mode = ['Current', 'Career', 'Playoff Stats', "Active Players"])
+def mode(Mode):
+    if Mode == "Current":
+        display(HTML("<h2>Type in any two 2021-2022 NBA season players!</h2>"))
+        @interact_manual(Player_1 = "", Player_2 = "")
+        def main(Player_1, Player_2):
+            try:
+                id_1 = players.find_players_by_full_name(Player_1)[0]['id']
+                id_2 = players.find_players_by_full_name(Player_2)[0]['id']
+                name1 = players.find_players_by_full_name(Player_1)[0]['full_name']
+                name2 = players.find_players_by_full_name(Player_2)[0]['full_name']
+                player1_info = commonplayerinfo.CommonPlayerInfo(player_id= id_1)
+                player2_info = commonplayerinfo.CommonPlayerInfo(player_id= id_2)    
+                player1_df = player1_info.player_headline_stats.get_data_frame()
+                player2_df = player2_info.player_headline_stats.get_data_frame()
+                p1_df = player1_df[['TimeFrame','PTS','AST','REB']]
+                p2_df = player2_df[['TimeFrame','PTS','AST','REB']]
+                stats = ['PTS','AST','REB']
+                p1_stats = makeStatList(p1_df,p1_df,p1_df)
+                p2_stats = makeStatList(p2_df,p2_df,p2_df)
+                if p1_df['TimeFrame'][0] == "career":
+                    display(HTML("<b>Player 1 did not play this season! Try Career Mode!</b>"))
+                if p2_df['TimeFrame'][0] == "career":
+                    display(HTML("<b>Player 2 did not play this season! Try Career Mode!</b>"))  
+                elif p1_df['TimeFrame'][0] == "2021-22" and p2_df['TimeFrame'][0] == "2021-22":    
+                    final_p1df = p1_df.rename(columns= {"TimeFrame":'Season'}, index={'0': "STATS"})
+                    final_p2df = p2_df.rename(columns= {"TimeFrame":'Season'}, index={'0': "STATS"})
+                    display(HTML("<h3>Basics Stats</h3>"))
+                    display(HTML(f"<b>Player 1: {name1}</b>"))
+                    print(final_p1df)
+                    print()
+                    display(HTML(f"<b>Player 2: {name2}</b>"))
+                    print(final_p2df)
+                    fig = go.Figure()
+                    fig.add_trace(go.Bar(x=stats,y=p1_stats, name= f"{name1}"))
+                    fig.add_trace(go.Bar(x=stats,y=p2_stats, name= f"{name2}"))
+                    fig.update_layout(title="Stat Comparison",xaxis_title = "Stat", yaxis_title = "Average Number of Stat")
+                    fig.show() 
+                    
+            except IndexError:
+                display(HTML("<b>A Player could not be found! Try again! (Check spelling of player's name)</b>"))
+    elif Mode == "Career":
+        display(HTML("<h2>Type in your any two NBA players!</h2>"))
+        @interact_manual(Player_1 = "", Player_2 = "")
+        def main(Player_1, Player_2):
+            try:
+                id_1 = players.find_players_by_full_name(Player_1)[0]['id']
+                id_2 = players.find_players_by_full_name(Player_2)[0]['id']
+                name1 = players.find_players_by_full_name(Player_1)[0]['full_name']
+                name2 = players.find_players_by_full_name(Player_2)[0]['full_name']
+                p1_career = playercareerstats.PlayerCareerStats(player_id= id_1)
+                p2_career = playercareerstats.PlayerCareerStats(player_id= id_2)
+                p1_j = p1_career.get_normalized_json()
+                p2_j = p2_career.get_normalized_json()
+                p1_j =json.loads(p1_j)
+                p2_j =json.loads(p2_j)
+                p1_df = pd.json_normalize(p1_j['SeasonTotalsRegularSeason'])
+                p2_df = pd.json_normalize(p2_j['SeasonTotalsRegularSeason'])  
+                final_p1df = p1_df[["SEASON_ID",'TEAM_ABBREVIATION','PLAYER_AGE','GP','GS','MIN','FGM','PTS','REB','AST','STL','BLK','TOV']]
+                final_p2df = p2_df[["SEASON_ID",'TEAM_ABBREVIATION','PLAYER_AGE','GP','GS','MIN','FGM','PTS','REB','AST','STL','BLK','TOV']]
+                fp1 = final_p1df.rename(columns ={'SEASON_ID': 'Year', 'TEAM_ABBREVIATION': 'Team', 'PLAYER_AGE': 'Age'})
+                fp2 = final_p2df.rename(columns ={'SEASON_ID': 'Year', 'TEAM_ABBREVIATION': 'Team', 'PLAYER_AGE': 'Age'})
+                display(HTML("<h3>Career Stats</h3>"))
+                display(HTML(f"<b>Player 1: {name1}</b>"))
+                print(fp1)
+                display(HTML(f"<b>Player 2: {name2}</b>"))            
+                print(fp2)
+            except IndexError:
+                display(HTML("<b>A Player could not be found! Try again! (Check spelling of player's name)</b>"))
+            
+    elif Mode == 'Playoff Stats':
+        display(HTML("<h2>Type in your any two NBA players!</h2>"))
+        @interact_manual(Player_1 = "", Player_2 = "")
+        def main(Player_1, Player_2):
+            try:
+                id_1 = players.find_players_by_full_name(Player_1)[0]['id']
+                id_2 = players.find_players_by_full_name(Player_2)[0]['id']
+                name1 = players.find_players_by_full_name(Player_1)[0]['full_name']
+                name2 = players.find_players_by_full_name(Player_2)[0]['full_name']
+                p1_career = playercareerstats.PlayerCareerStats(player_id= id_1)
+                p2_career = playercareerstats.PlayerCareerStats(player_id= id_2)
+                p1_j = p1_career.get_normalized_json()
+                p2_j = p2_career.get_normalized_json()
+                p1_j =json.loads(p1_j)
+                p2_j =json.loads(p2_j)
+                p1_df = pd.json_normalize(p1_j['SeasonTotalsPostSeason'])
+                p2_df = pd.json_normalize(p2_j['SeasonTotalsPostSeason'])  
+                final_p1df = p1_df[["SEASON_ID",'TEAM_ABBREVIATION','PLAYER_AGE','GP','GS','MIN','FGM','PTS','REB','AST','STL','BLK','TOV']]
+                final_p2df = p2_df[["SEASON_ID",'TEAM_ABBREVIATION','PLAYER_AGE','GP','GS','MIN','FGM','PTS','REB','AST','STL','BLK','TOV']]
+                fp1 = final_p1df.rename(columns ={'SEASON_ID': 'Year', 'TEAM_ABBREVIATION': 'Team', 'PLAYER_AGE': 'Age'})
+                fp2 = final_p2df.rename(columns ={'SEASON_ID': 'Year', 'TEAM_ABBREVIATION': 'Team', 'PLAYER_AGE': 'Age'})
+                display(HTML("<h3>Playoff Stats</h3>"))
+                display(HTML(f"<b>Player 1: {name1}</b>"))
+                print(fp1)
+                display(HTML(f"<b>Player 2: {name2}</b>"))            
+                print(fp2)
+            except IndexError:
+                display(HTML("<b>A Player could not be found! Try again! (Check spelling of player's name)</b>"))
+    elif Mode == 'Active Players':
+        for x in players.get_active_players():
+            print(x['full_name'])
+    else:
+        print("Error.")
